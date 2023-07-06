@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: cartcreator-http
+  labels:
+    app: cartcreator
+    tier: frontend
+spec:
+  type: LoadBalancer
+  ports:
+  - nodePort: 31235
+    protocol: TCP
+    port: 80
+    targetPort: 80
+  selector:
+    app: cartcreator
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-cart
+  annotations:
+    ingressclass.kubernetes.io/is-default-class: "true"
+    prometheus.io/scrape: 'true'
+    prometheus.io/path: '/metrics'
+    prometheus.io/port: '80'
+    prometheus.io/interval: '6s'
+
+spec:
+  rules:
+    - host: cart.akkasharding.com
+      http:
+       paths:
+        - path: /cart
+          pathType: Prefix
+          backend:
+            service:
+              name: cartcreator-http
+              port:
+                number: 80

@@ -5,17 +5,16 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>CartItemProcessor_1</RootNamespace>
+    <UserSecretsId>d158e978-f7b7-40d6-b964-aa766e815ae1</UserSecretsId>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <DockerComposeProjectPath>..\docker-compose.dcproj</DockerComposeProjectPath>
   </PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Akka.Cluster.Hosting" Version="1.5.7" />
-		<PackageReference Include="Akka.DistributedData" Version="1.5.7" />
 		<PackageReference Include="Microsoft.AspNetCore" Version="2.2.0" />
 		<PackageReference Include="Microsoft.Extensions.Hosting" Version="6.0.1" />
 		<PackageReference Include="Microsoft.NETCore.App" Version="2.2.8" />
-		<PackageReference Include="Petabridge.Cmd.Cluster" Version="1.3.1" />
-		<PackageReference Include="Petabridge.Cmd.Cluster.Sharding" Version="1.3.1" />
-		<PackageReference Include="Petabridge.Cmd.Remote" Version="1.3.1" />
+		<PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.17.2" />
 	</ItemGroup>
 
   <ItemGroup>

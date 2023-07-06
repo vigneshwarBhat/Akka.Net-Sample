@@ -5,6 +5,7 @@ using Akka.Cluster.Infra.Events;
 using Akka.Cluster.Sharding;
 using Akka.DistributedData;
 using Akka.Event;
+using Akka.Hosting;
 using System.Text.Json;
 
 namespace CartWorker.Actor
@@ -12,18 +13,15 @@ namespace CartWorker.Actor
     internal class CartProcessActor : ReceiveActor
     {
         private readonly ILoggingAdapter _log = Context.GetLogger();
-        private IActorRef _cartRouter;
         private IActorRef _shardCartItemActor;
-        public CartProcessActor()
+        public CartProcessActor(IActorRegistry _actorRegistry)
         {
+            _shardCartItemActor = _actorRegistry.Get<IShardProxyActor>();
             var _cluster = Cluster.Get(Context.System);
             var _replicator = DistributedData.Get(Context.System).Replicator;
             var writeConsistency =  WriteLocal.Instance;
             var readConsistency = ReadLocal.Instance;
-            Context.SetReceiveTimeout(TimeSpan.FromMinutes(1));
-            Receive<ReceiveTimeout>(_ => {
-                Context.Parent.Tell(new Passivate(PoisonPill.Instance));
-            });
+
             Receive<CreateCartRequest>(async req =>
             {
                 var str = JsonSerializer.Serialize(new List<CartItemJournal>());
@@ -69,16 +67,5 @@ namespace CartWorker.Actor
             });
         }
 
-        protected override void PreStart()
-        {
-            //_cartRouter = Context.System.ActorOf(Props.Empty.WithRouter(new ClusterRouterPool(new ConsistentHashingPool(10, CartEventConsistentHashMapping.consistentHashMappingKey), new ClusterRouterPoolSettings(10, 10, true, "cart-processor"))), "cartPoolRouter");
-
-            Cluster.Get(Context.System).RegisterOnMemberUp(() =>
-            {
-                var sharding = ClusterSharding.Get(Context.System);
-                _shardCartItemActor = sharding.StartProxy("cartItemWorker", "cartItem-processor", new ShardCartItemMessage());
-            });
-            base.PreStart();
-        }
     }
 }

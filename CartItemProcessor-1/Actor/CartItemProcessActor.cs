@@ -22,11 +22,6 @@ namespace CartWorker.Actor
             var writeConsistency = WriteLocal.Instance;
             var readConsistency = ReadLocal.Instance;
 
-            Context.SetReceiveTimeout(TimeSpan.FromMinutes(1));
-            Receive<ReceiveTimeout>(_ =>
-            {
-                Context.Parent.Tell(new Passivate(PoisonPill.Instance));
-            });
 
             Receive<CreateCartItemRequest>(async req =>
             {

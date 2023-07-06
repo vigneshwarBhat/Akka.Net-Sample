@@ -1,0 +1,77 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: cartprocessor
+  labels:
+    app: cartprocessor
+spec:
+  publishNotReadyAddresses: true
+  clusterIP: None
+  ports:
+    - port: 8558
+      name: management
+    - port: 5055
+      name: akka-remote
+  selector:
+    app: cartprocessor
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cartprocessor
+  labels:
+    app: cartprocessor
+    cluster: cartservice
+spec:
+  serviceName: cartprocessor
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cartprocessor
+  template:
+    metadata:
+      labels:
+        app: cartprocessor
+        cluster: cartservice
+    spec:
+      terminationGracePeriodSeconds: 35
+      containers:
+      - name: cartprocessor
+        image: vigneshwar11/cartprocessor:0.0.2
+        resources:
+            requests:
+                memory: "300M"
+                cpu: "50m"
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "pbm 127.0.0.1:9110 cluster leave"]
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: CLUSTER__IP
+          value: "$(POD_NAME).cartprocessor"
+        - name: CLUSTER__PORT
+          value: "5055"          
+        - name: CLUSTER__STARTUPMETHOD
+          value: "KubernetesDiscovery"
+        - name: CLUSTER__DISCOVERY__SERVICENAME
+          value: "cartservice"
+        - name: CLUSTER__READINESSPORT
+          value: "11001"
+        - name: CLUSTER__PBMPORT
+          value: "9110"
+        - name: CLUSTER__ISDOCKER
+          value: "true"
+        livenessProbe:
+          tcpSocket:
+            port: 11001
+        ports:
+          - containerPort: 8558
+            protocol: TCP
+            name: management
+          - containerPort: 5055
+            protocol: TCP
+            name: akka-remote

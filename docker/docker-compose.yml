@@ -1,0 +1,22 @@
+version: '3.4'
+
+services:
+  cartapiservice:
+    image: ${DOCKER_REGISTRY-}cartservice
+    build:
+      context: .
+      dockerfile: CartAPI/Dockerfile
+
+  cartitemprocessor-1:
+    image: ${DOCKER_REGISTRY-}cartitemprocessor1
+    build:
+      context: .
+      dockerfile: CartItemProcessor-1/Dockerfile
+
+
+  cartprocessor-1:
+    image: ${DOCKER_REGISTRY-}cartprocessor1
+    build:
+      context: .
+      dockerfile: CartProcessor-1/Dockerfile
+

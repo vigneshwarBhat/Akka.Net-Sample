@@ -1,14 +1,9 @@
 using Akka.Actor;
 using Akka.Cluster.Hosting;
-using Akka.Cluster.Routing;
+using Akka.Cluster.Infra;
+using Akka.Cluster.Infra.Events;
 using Akka.Hosting;
 using Akka.Remote.Hosting;
-using Akka.Routing;
-using Petabridge.Cmd.Cluster;
-using Petabridge.Cmd.Cluster.Sharding;
-using Petabridge.Cmd.Host;
-using Petabridge.Cmd.Remote;
-using System.Diagnostics;
 using TradePlacementAPI;
 
 var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Development";
@@ -26,36 +21,38 @@ builder.Configuration
     .AddEnvironmentVariables();
 
 builder.Logging.ClearProviders().AddConsole();
-
-var akkaConfig = builder.Configuration.GetRequiredSection(nameof(AkkaClusterConfig))
-    .Get<AkkaClusterConfig>();
-
-builder.Services.AddControllers();
-builder.Services.AddAkka(akkaConfig.ActorSystemName, (builder, provider) =>
+builder.WebHost.ConfigureServices((context, services) =>
 {
-    Debug.Assert(akkaConfig.Port != null, "akkaConfig.Port != null");
-    builder.AddHoconFile("app.conf", HoconAddMode.Append)
-        .WithRemoting(akkaConfig.Hostname, akkaConfig.Port.Value)
-        .WithClustering(new ClusterOptions()
-        {
-            Roles = akkaConfig.Roles,
-            SeedNodes = akkaConfig.SeedNodes
-        })
-        .AddPetabridgeCmd(cmd =>
-        {
-            cmd.RegisterCommandPalette(new RemoteCommands());
-            cmd.RegisterCommandPalette(ClusterCommands.Instance);
-
-            // sharding commands, although the app isn't configured to host any by default
-            cmd.RegisterCommandPalette(ClusterShardingCommands.Instance);
-        })
-        .WithActors((system, registry) =>
-        {
-            var consoleActor = system.ActorOf(Props.Create(() => new BridgeActor()), "bridge");
-            registry.Register<BridgeActor>(consoleActor);
-
-        });
+    services.AddControllers();
+    services.AddAkka("cartservice", (builder, provider) =>
+    {
+        builder
+            .WithRemoting(hostname: "localhost", port: 9445)
+            // Add common DevOps settings
+            .WithOps(
+                remoteOptions: new RemoteOptions
+                {
+                    HostName = "0.0.0.0",
+                    Port = 9445
+                },
+                clusterOptions: new ClusterOptions
+                {
+                    SeedNodes = new[] { "akka.tcp://cartservice@localhost:9445" },
+                    Roles = new[] { "cartcreator" },
+                },
+                config: context.Configuration,
+                readinessPort: 11110,
+                pbmPort: 9211)
+            .WithShardRegionProxy<IShardProxyActor>("cartworker", "cartprocessor", new ShardCartMessageRouter())
+            // Instantiate actors
+            .WithActors((system, registry) =>
+            {
+               var bridgeActor = system.ActorOf(Props.Create(() => new BridgeActor(registry)), "bridge");
+                registry.Register<BridgeActor>(bridgeActor);
+            });
+    });
 });
+
 
 
 var app = builder.Build();
