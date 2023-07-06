@@ -3,10 +3,6 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.33516.290
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CartProcessor-2", "CartProcessor-2\CartProcessor-2.csproj", "{A4878CD3-D1EE-4E10-B870-F0D0C5466D82}"
-EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CartItemProcessor-2", "CartItemProcessor-2\CartItemProcessor-2.csproj", "{43E2A76E-C8A1-4CA0-9C48-6EC03034CC95}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CartItemProcessor-1", "CartItemProcessor-1\CartItemProcessor-1.csproj", "{8A258C67-2282-42B1-875E-518EC2771D71}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Akka.Cluster.Infra", "Akka.Cluster.Infra\Akka.Cluster.Infra.csproj", "{8A31A7FD-764B-441D-8739-22988E0C64C2}"
@@ -15,22 +11,12 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CartAPI", "CartAPI\CartAPI.
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CartProcessor-1", "CartProcessor-1\CartProcessor-1.csproj", "{A1B64A8B-D22F-4C86-9AE8-79E2F69557F1}"
 EndProject
-Project("{E53339B2-1760-4266-BCC7-CA923CBCF16C}") = "docker-compose", "docker-compose.dcproj", "{B9C6ECE1-015B-4573-994D-1AA26017638E}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{A4878CD3-D1EE-4E10-B870-F0D0C5466D82}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{A4878CD3-D1EE-4E10-B870-F0D0C5466D82}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{A4878CD3-D1EE-4E10-B870-F0D0C5466D82}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{A4878CD3-D1EE-4E10-B870-F0D0C5466D82}.Release|Any CPU.Build.0 = Release|Any CPU
-		{43E2A76E-C8A1-4CA0-9C48-6EC03034CC95}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{43E2A76E-C8A1-4CA0-9C48-6EC03034CC95}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{43E2A76E-C8A1-4CA0-9C48-6EC03034CC95}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{43E2A76E-C8A1-4CA0-9C48-6EC03034CC95}.Release|Any CPU.Build.0 = Release|Any CPU
 		{8A258C67-2282-42B1-875E-518EC2771D71}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{8A258C67-2282-42B1-875E-518EC2771D71}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8A258C67-2282-42B1-875E-518EC2771D71}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -47,10 +33,6 @@ Global
 		{A1B64A8B-D22F-4C86-9AE8-79E2F69557F1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A1B64A8B-D22F-4C86-9AE8-79E2F69557F1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A1B64A8B-D22F-4C86-9AE8-79E2F69557F1}.Release|Any CPU.Build.0 = Release|Any CPU
-		{B9C6ECE1-015B-4573-994D-1AA26017638E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{B9C6ECE1-015B-4573-994D-1AA26017638E}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{B9C6ECE1-015B-4573-994D-1AA26017638E}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{B9C6ECE1-015B-4573-994D-1AA26017638E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
