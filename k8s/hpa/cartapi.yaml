@@ -8,7 +8,7 @@ spec:
     kind: StatefulSet
     name: cartcreator
   minReplicas: 1
-  maxReplicas: 3
+  maxReplicas: 2
   metrics:
     - resource:
         name: memory
@@ -22,3 +22,4 @@ spec:
           averageUtilization: 80
           type: Utilization
       type: Resource
+      

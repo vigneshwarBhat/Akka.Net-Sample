@@ -1,6 +1,7 @@
 ﻿using Akka.Actor;
 using Akka.Cluster.Infra;
 using Akka.Cluster.Infra.Events;
+using Akka.Cluster.Infra.Events.Persistence;
 using Akka.Event;
 using Akka.Hosting;
 
@@ -10,10 +11,13 @@ namespace TradePlacementAPI
     {
         private readonly ILoggingAdapter _log = Context.GetLogger();
         private IActorRef _shardCartActor;
+        private IActorRef _shardCartStatusActor;
+
 
         public BridgeActor(IActorRegistry _actorRegistry)
         {
-            _shardCartActor = _actorRegistry.Get<IShardProxyActor>();
+            _shardCartActor = _actorRegistry.Get<ShardCartMessageRouter>();
+            _shardCartStatusActor= _actorRegistry.Get<ShardCartStatusMessage>();
             Receive<CreateCartRequest>(cartReq =>
             {
                 _log.Info($"Received create cart request for cart Id {cartReq.CartId} for the user : {cartReq.UserId}");
@@ -31,7 +35,7 @@ namespace TradePlacementAPI
             Receive<GetCartStatus>(async GetCartStatus =>
             {
                 var sender = Context.Sender;
-                var result = await _shardCartActor.Ask<CartJournal>(GetCartStatus);               
+                var result = await _shardCartStatusActor.Ask<CartJournal>(GetCartStatus);               
                 _log.Info($"Received Get cart status response for cart Id: {result.CartId} with status : {result.CartStatus}");
                 sender.Tell(result);
                 

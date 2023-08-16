@@ -8,7 +8,7 @@ spec:
     kind: StatefulSet
     name: cartitemprocessor
   minReplicas: 1
-  maxReplicas: 3
+  maxReplicas: 2
   metrics:
     - resource:
         name: memory

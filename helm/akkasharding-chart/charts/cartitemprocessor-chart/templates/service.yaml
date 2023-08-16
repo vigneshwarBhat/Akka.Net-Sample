@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "cartitemprocessor-chart.fullname" . }}
+  namespace: {{ .Values.global.namespace.name }}
+  labels:
+    {{- include "cartitemprocessor-chart.labels" . | nindent 4 }}
+spec:
+  publishNotReadyAddresses: {{ .Values.service.publishNotReadyAddresses }} 
+  clusterIP: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.managementport }}
+      name: management
+    - port: {{ .Values.service.akkaremoteport }}
+      name: akka-remote
+  selector:
+    {{- include "cartitemprocessor-chart.selectorLabels" . | nindent 4 }}

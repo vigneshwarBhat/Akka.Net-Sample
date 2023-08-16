@@ -4,19 +4,28 @@ services:
   cartapiservice:
     image: ${DOCKER_REGISTRY-}cartservice
     build:
-      context: .
-      dockerfile: CartAPI/Dockerfile
+      context: CartAPI
+      dockerfile: Dockerfile
 
   cartitemprocessor-1:
-    image: ${DOCKER_REGISTRY-}cartitemprocessor1
+    image: ${DOCKER_REGISTRY-}cartitemprocessor
     build:
-      context: .
-      dockerfile: CartItemProcessor-1/Dockerfile
+      context: CartItemProcessor-1
+      dockerfile: Dockerfile
 
 
   cartprocessor-1:
-    image: ${DOCKER_REGISTRY-}cartprocessor1
+    image: ${DOCKER_REGISTRY-}cartprocessor
     build:
-      context: .
-      dockerfile: CartProcessor-1/Dockerfile
+      context: CartProcessor-1
+      dockerfile: Dockerfile
+
+  cartstatusprocessor:
+    image: ${DOCKER_REGISTRY-}cartstatusprocessor
+    build:
+      context: CartStatusProcessor
+      dockerfile: Dockerfile
+
+  persistence:
+    image: mcr.microsoft.com/azure-sql-edge:latest
 

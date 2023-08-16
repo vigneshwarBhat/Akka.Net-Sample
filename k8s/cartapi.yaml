@@ -23,7 +23,7 @@ metadata:
     app: cartcreator
     cluster: cartservice
 spec:
-  serviceName: cartcreator
+  serviceName: akka-cartapi-chart
   replicas: 1
   selector:
     matchLabels:
@@ -35,13 +35,14 @@ spec:
         cluster: cartservice
     spec:
       terminationGracePeriodSeconds: 35
+      serviceAccountName: akka
       containers:
       - name: cartcreator
-        image: vigneshwar11/cartservice:0.0.2
+        image: vigneshwar11/cartservice:0.0.6
         resources:
             requests:
                 memory: "300M"
-                cpu: "50m"
+                cpu: "100m"
         lifecycle:
           preStop:
             exec:

@@ -2,6 +2,10 @@ version: '3.4'
 
 services:
   cartapiservice:
+    image: ${DOCKER_REGISTRY-}cartservice
+    build:
+      context: CartAPI
+      dockerfile: Dockerfile
     hostname: cartapiservice.web
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
@@ -16,8 +20,14 @@ services:
       - "8080:80"
       - "9445:9445"
       - "9110:9110"
+    depends_on:
+      - persistence
 
   cartitemprocessor-1:
+    image: ${DOCKER_REGISTRY-}cartitemprocessor
+    build:
+      context: CartItemProcessor-1
+      dockerfile: Dockerfile
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - CLUSTER__PORT=4056
@@ -26,10 +36,18 @@ services:
       - CLUSTER__READINESSPORT=11001
       - CLUSTER__PBMPORT=9110
       - CLUSTER__ISDOCKER=true
+      - CONNECTIONSTRINGS__SQLSERVERLOCAL=Server=persistence,1433;Database=Akka;User Id=sa;Password=Conga@062023;
+      - CONNECTIONSTRINGS__SQLSERVERSHARDING=Server=persistence,1433;Database=AkkaSharding;User Id=sa;Password=Conga@062023;
+      - ISSQLPERSISTENCEENABLED=true
     depends_on:
       - cartapiservice
+      - persistence
 
   cartprocessor-1:
+    image: ${DOCKER_REGISTRY-}cartprocessor
+    build:
+      context: CartProcessor-1
+      dockerfile: Dockerfile
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - CLUSTER__PORT=4056
@@ -38,5 +56,42 @@ services:
       - CLUSTER__READINESSPORT=11001
       - CLUSTER__PBMPORT=9110
       - CLUSTER__ISDOCKER=true
+      - CONNECTIONSTRINGS__SQLSERVERLOCAL=Server=persistence,1433;Database=Akka;User Id=sa;Password=Conga@062023;
+      - CONNECTIONSTRINGS__SQLSERVERSHARDING=Server=persistence,1433;Database=AkkaSharding;User Id=sa;Password=Conga@062023;
+      - ISSQLPERSISTENCEENABLED=true
     depends_on:
       - cartapiservice
+      - persistence
+
+  cartstatusprocessor:
+    image: ${DOCKER_REGISTRY-}cartstatusprocessor
+    build:
+      context: CartStatusProcessor
+      dockerfile: Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - CLUSTER__PORT=4056
+      - CLUSTER__SEEDS__0=akka.tcp://cartservice@cartapiservice.web:4056
+      - CLUSTER__STARTUPMETHOD=SeedNodes
+      - CLUSTER__READINESSPORT=11001
+      - CLUSTER__PBMPORT=9110
+      - CLUSTER__ISDOCKER=true
+      - CONNECTIONSTRINGS__SQLSERVERLOCAL=Server=persistence,1433;Database=Akka;User Id=sa;Password=Conga@062023;
+      - CONNECTIONSTRINGS__SQLSERVERSHARDING=Server=persistence,1433;Database=AkkaSharding;User Id=sa;Password=Conga@062023;
+      - ISSQLPERSISTENCEENABLED=true
+    depends_on:
+      - cartapiservice
+      - persistence
+  persistence:
+    image: mcr.microsoft.com/azure-sql-edge:latest
+    environment:
+     - ACCEPT_EULA=Y
+     - MSSQL_SA_PASSWORD=Conga@062023
+     - MSSQL_USER=SA
+     - MSSQL_PID=Developer
+    volumes:
+      - mssql-azuresql-edge-data:/var/opt/mssql
+    ports:
+      - "1433:1433"
+volumes:
+  mssql-azuresql-edge-data:

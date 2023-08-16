@@ -1,0 +1,13 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: {{ include "sqledge-chart.fullname" . }}
+  namespace: {{ .Values.global.namespace.name }}
+  labels:
+    {{- include "sqledge-chart.labels" . | nindent 4 }}
+spec:
+  accessModes:
+  - {{ .Values.pvc.mssqldataaccessMode }}
+  resources:
+   requests:
+    storage: {{ .Values.pvc.mssqldbsize }}

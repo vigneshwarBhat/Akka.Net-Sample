@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "cartstatusprocessor-chart.fullname" . }}
+  namespace: {{ .Values.global.namespace.name }}
+  labels:
+    {{- include "cartstatusprocessor-chart.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "cartstatusprocessor-chart.fullname" . }}
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "cartstatusprocessor-chart.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "cartstatusprocessor-chart.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "akkasharding-chart.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: management
+              containerPort: {{ .Values.service.managementport }}
+              protocol: TCP
+            - name: akka-remote
+              containerPort: {{ .Values.service.akkaremoteport }}
+              protocol: TCP
+          livenessProbe:
+            tcpSocket:
+              port: 11001
+          readinessProbe:
+            tcpSocket:
+              port: 11001
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "pbm 127.0.0.1:9110 cluster leave"]
+          env:
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: CLUSTER__IP
+            value: "{{ printf "$(POD_NAME).%s" .Values.fullnameOverride }}" # podname.servicename
+          - name: CLUSTER__PORT
+            value: {{ .Values.CLUSTER__PORT.value | quote }}
+          - name: CLUSTER__STARTUPMETHOD
+            value: {{ .Values.CLUSTER__STARTUPMETHOD.value | quote }}
+          - name: CLUSTER__DISCOVERY__SERVICENAME
+            value: {{ .Values.CLUSTER__DISCOVERY__SERVICENAME.value | quote }}
+          - name: CLUSTER__READINESSPORT
+            value: {{ .Values.CLUSTER__READINESSPORT.value | quote }}
+          - name: CLUSTER__PBMPORT
+            value: {{ .Values.CLUSTER__PBMPORT.value | quote }}
+          - name: CLUSTER__ISDOCKER
+            value: {{ .Values.CLUSTER__ISDOCKER.value | quote }}
+          - name: ConnectionStrings__sqlServerLocal
+            value: {{ .Values.ConnectionStrings__sqlServerLocal.value | quote }}
+          - name: ConnectionStrings__sqlServerSharding
+            value:  {{ .Values.ConnectionStrings__sqlServerSharding.value | quote }}
+          - name: IsSqlPersistenceEnabled
+            value: {{ .Values.IsSqlPersistenceEnabled.value | quote }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

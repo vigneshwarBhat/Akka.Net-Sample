@@ -1,0 +1,55 @@
+replicas: 1
+
+image:
+  repository: mcr.microsoft.com/azure-sql-edge
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "latest"
+
+fullnameOverride: sqledge
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+ACCEPT_EULA:
+    value: "y"
+MSSQL_PID:
+    value: Developer
+MSSQL_AGENT_ENABLED:
+    value: "true"
+MSSQL_COLLATION:
+    value: SQL_Latin1_General_CP1_CI_AS
+MSSQL_LCID:
+    value: 1033
+hostname: mssqllatest
+containers:
+  ports:
+      containerPort: 1433
+
+podAnnotations: {}
+
+podSecurityContext:
+   fsGroup: 10001
+
+service:
+  type: LoadBalancer
+  port: 1433
+ingress:
+  enabled: false
+autoscaling:
+  enabled: false
+pvc:
+ mssqldataaccessMode: ReadWriteOnce
+ mssqldbsize: 500M
+secret:
+ sqlpassword: Conga@062023
+ type: opaque
+ 
+resources: {}
+ 

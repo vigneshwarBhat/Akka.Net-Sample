@@ -1,10 +1,5 @@
 ﻿using Akka.Cluster.Sharding;
 using Akka.Persistence.Extras;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Akka.Cluster.Infra
 {
@@ -22,11 +17,11 @@ namespace Akka.Cluster.Infra
         /// 3 nodes hosting cart processor, 10 shards per node.
         /// </summary>
         public const int DefaultShardCount = 30;
-        public override string EntityId(object message)
+        public override string? EntityId(object message)
         {
             if (message is IWithCartItemId cartMsg)
             {
-                return cartMsg.CartItemId;
+                return $"{cartMsg.CartId}|{cartMsg.CartItemId}";
             }
             if (message is ShardRegion.StartEntity start)
             {
@@ -34,7 +29,7 @@ namespace Akka.Cluster.Infra
             }
             if (message is IConfirmableMessageEnvelope<IWithCartItemId> envelope)
             {
-                return envelope.Message.CartItemId;
+                return $"{envelope.Message.CartId}|{envelope.Message.CartItemId}";
             }
 
             return null;
@@ -50,5 +45,7 @@ namespace Akka.Cluster.Infra
         /// The ticker symbol for a specific stock.
         /// </summary>
         string CartItemId { get; }
+
+        string CartId { get; }
     }
 }

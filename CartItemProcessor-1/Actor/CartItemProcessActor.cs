@@ -23,7 +23,7 @@ namespace CartWorker.Actor
             var readConsistency = ReadLocal.Instance;
 
 
-            Receive<CreateCartItemRequest>(async req =>
+            ReceiveAsync<CreateCartItemRequest>(async req =>
             {
                 _log.Info($"[{nameof(CartItemProcessActor)}] Received Create cart item request for cart Id {req.CartId} and cart item id {req.CartItemId}");
                 var key = new ORSetKey<string>(req.CartId);
@@ -44,7 +44,7 @@ namespace CartWorker.Actor
                 var cartItem = new CartItemJournal
                 {
                     CartItemId = req.CartItemId,
-                    Name = req.Name,
+                    Quantity = 1,
                     Status = "InProgress"
                 };
                 cartItems.Add(cartItem);

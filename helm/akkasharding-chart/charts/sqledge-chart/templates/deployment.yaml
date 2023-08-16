@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sqledge-chart.fullname" . }}
+  namespace: {{ .Values.global.namespace.name }}
+  labels:
+    {{- include "sqledge-chart.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "sqledge-chart.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "sqledge-chart.selectorLabels" . | nindent 8 }}
+    spec:
+      hostname: {{ .Values.hostname}}
+      volumes:
+        - name: sqldata
+          persistentVolumeClaim:
+            claimName: {{ include "sqledge-chart.fullname" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "sqledge-chart.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: sql
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          volumeMounts:
+            - name: sqldata
+              mountPath: /var/opt/mssql
+          env:
+            - name: MSSQL_PID
+              value: "{{ .Values.MSSQL_PID.value }}"
+            - name: ACCEPT_EULA
+              value: "{{ .Values.ACCEPT_EULA.value }}"
+            - name: SA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mssql
+                  key: {{  template "mssql.sapassword" . }}
+            - name: MSSQL_AGENT_ENABLED
+              value: "{{ .Values.MSSQL_AGENT_ENABLED.value}}"
+            - name: MSSQL_COLLATION
+              value: "{{ .Values.MSSQL_COLLATION.value }}"
+            - name: MSSQL_LCID
+              value: "{{ .Values.MSSQL_LCID.value }}"          
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

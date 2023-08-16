@@ -1,0 +1,84 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: cartstatusprocessor
+  labels:
+    app: cartstatusprocessor
+spec:
+  publishNotReadyAddresses: true
+  clusterIP: None
+  ports:
+    - port: 8558
+      name: management
+    - port: 5055
+      name: akka-remote
+  selector:
+    app: cartstatusprocessor
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cartstatusprocessor
+  labels:
+    app: cartstatusprocessor
+    cluster: cartservice
+spec:
+  serviceName: cartstatusprocessor
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cartstatusprocessor
+  template:
+    metadata:
+      labels:
+        app: cartstatusprocessor
+        cluster: cartservice
+    spec:
+      terminationGracePeriodSeconds: 35
+      containers:
+      - name: cartstatusprocessor
+        image: vigneshwar11/cartstatusprocessor:0.0.1
+        resources:
+            requests:
+                memory: "300M"
+                cpu: "100m"
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "pbm 127.0.0.1:9110 cluster leave"]
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: CLUSTER__IP
+          value: "$(POD_NAME).cartstatusprocessor"
+        - name: CLUSTER__PORT
+          value: "5055"
+        - name: CLUSTER__STARTUPMETHOD
+          value: "KubernetesDiscovery"
+        - name: CLUSTER__DISCOVERY__SERVICENAME
+          value: "cartservice"
+        - name: CLUSTER__READINESSPORT
+          value: "11001"
+        - name: CLUSTER__PBMPORT
+          value: "9110"
+        - name: CLUSTER__ISDOCKER
+          value: "true"
+        - name: ConnectionStrings__sqlServerLocal
+          value: "Server=sqledge-deployment.cartservice.svc.cluster.local;Database=Akka;User Id=sa;Password=Conga@062023;"
+        - name: ConnectionStrings__sqlServerSharding
+          value: "Server=sqledge-deployment.cartservice.svc.cluster.local;Database=AkkaSharding;User Id=sa;Password=Conga@062023;"
+        - name: IsSqlPersistenceEnabled
+          value: "true"  
+        livenessProbe:
+          tcpSocket:
+            port: 11001
+        ports:
+          - containerPort: 8558
+            protocol: TCP
+            name: management
+          - containerPort: 5055
+            protocol: TCP
+            name: akka-remote
+

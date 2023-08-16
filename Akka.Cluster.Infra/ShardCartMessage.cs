@@ -47,4 +47,9 @@ namespace Akka.Cluster.Infra
         /// </summary>
         string CartId { get; }
     }
+
+    public interface ICartEvent
+    {
+
+    }
 }

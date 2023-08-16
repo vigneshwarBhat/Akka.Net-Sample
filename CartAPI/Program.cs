@@ -17,13 +17,21 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Configuration
     .AddJsonFile("appsettings.json")
-    .AddJsonFile($"appsettings.{environment}.json", optional: true)
     .AddEnvironmentVariables();
 
 builder.Logging.ClearProviders().AddConsole();
 builder.WebHost.ConfigureServices((context, services) =>
 {
     services.AddControllers();
+    builder.Services.AddCors(options =>
+    {
+        options.AddPolicy("CorsPolicy",
+            policy => policy
+                .SetIsOriginAllowed((host) => true)
+                .AllowAnyMethod()
+            .AllowAnyHeader()
+                .AllowCredentials());
+    });
     services.AddAkka("cartservice", (builder, provider) =>
     {
         builder
@@ -43,7 +51,8 @@ builder.WebHost.ConfigureServices((context, services) =>
                 config: context.Configuration,
                 readinessPort: 11110,
                 pbmPort: 9211)
-            .WithShardRegionProxy<IShardProxyActor>("cartworker", "cartprocessor", new ShardCartMessageRouter())
+            .WithShardRegionProxy<ShardCartMessageRouter>("cartworker", "cartprocessor", new ShardCartMessageRouter())
+            .WithShardRegionProxy<ShardCartStatusMessage>("cartstatusworker", "cartstatusprocessor", new ShardCartStatusMessage())
             // Instantiate actors
             .WithActors((system, registry) =>
             {
@@ -63,7 +72,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-
+app.UseCors("CorsPolicy");
 app.UseHttpsRedirection();
 
 app.UseAuthorization();

@@ -34,14 +34,15 @@ spec:
         app: cartprocessor
         cluster: cartservice
     spec:
+      serviceAccountName: akka
       terminationGracePeriodSeconds: 35
       containers:
       - name: cartprocessor
-        image: vigneshwar11/cartprocessor:0.0.2
+        image: vigneshwar11/cartprocessor:0.0.5
         resources:
             requests:
                 memory: "300M"
-                cpu: "50m"
+                cpu: "100m"
         lifecycle:
           preStop:
             exec:
@@ -65,6 +66,12 @@ spec:
           value: "9110"
         - name: CLUSTER__ISDOCKER
           value: "true"
+        - name: ConnectionStrings__sqlServerLocal
+          value: "Server=sqledge-deployment.cartservice.svc.cluster.local;Database=Akka;User Id=sa;Password=Conga@062023;"
+        - name: ConnectionStrings__sqlServerSharding
+          value: "Server=sqledge-deployment.cartservice.svc.cluster.local;Database=AkkaSharding;User Id=sa;Password=Conga@062023;"
+        - name: IsSqlPersistenceEnabled
+          value: "true"  
         livenessProbe:
           tcpSocket:
             port: 11001

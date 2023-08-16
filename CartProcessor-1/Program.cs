@@ -4,69 +4,113 @@ using Akka.Hosting;
 using Akka.Remote.Hosting;
 using Akka.Cluster.Infra.Events;
 using Akka.Actor;
-using CartWorker.Actor;
 using Akka.Cluster.Sharding;
+using Akka.Persistence.SqlServer.Hosting;
 
 class Program
 {
     static async Task Main(string[] args)
     {
-            var host = new HostBuilder()
-                  .ConfigureHostConfiguration(builder =>
+        var host = new HostBuilder()
+              .ConfigureHostConfiguration(builder =>
+              {
+                  builder.AddJsonFile("appsettings.json");
+                  builder.AddEnvironmentVariables();
+              })
+              .ConfigureServices((hostContext, services) =>
+              {
+                  services.AddLogging();
+                  services.AddAkka("cartservice", (builder, provider) =>
                   {
-                      builder.AddEnvironmentVariables();
-                  })
-                  .ConfigureServices((hostContext, services) =>
-                  {
-                      services.AddLogging();
-                      services.AddAkka("cartservice", (builder, provider) =>
+                      // Grab connection strings from appsettings.json
+                      var localConn = hostContext.Configuration.GetConnectionString("sqlServerLocal");
+                      var shardingConn = hostContext.Configuration.GetConnectionString("sqlServerSharding");
+
+                      // Custom journal options with the id "sharding"
+                      // The absolute id will be "akka.persistence.journal.sharding"
+                      var shardingJournalOptions = new SqlServerJournalOptions(isDefaultPlugin: false)
                       {
-                          builder
-                             .AddHocon(hocon: "akka.remote.dot-netty.tcp.maximum-frame-size = 256000b", addMode: HoconAddMode.Prepend)
+                          Identifier = "sharding",
+                          ConnectionString = shardingConn,
+                          AutoInitialize = true
+                      };
 
-                             // Add common DevOps settings
-                             .WithOps(
-                                  remoteOptions: new RemoteOptions
-                                  {
-                                      HostName = "0.0.0.0",
-                                      Port = 9447
-                                  },
-                                  clusterOptions: new ClusterOptions
-                                  {
-                                      SeedNodes = new[] { "akka.tcp://cartservice@localhost:9445" },
-                                      Roles = new[] { "cartprocessor" }
-                                  },
-                                  config: hostContext.Configuration,
-                                  readinessPort: 11112,
-                                  pbmPort: 9213)
+                      // Custom snapshots options with the id "sharding"
+                      // The absolute id will be "akka.persistence.snapshot-store.sharding"
+                      var shardingSnapshotOptions = new SqlServerSnapshotOptions(isDefaultPlugin: false)
+                      {
+                          Identifier = "sharding",
+                          ConnectionString = shardingConn,
+                          AutoInitialize = true
+                      };
+                      var isSqlPersistenceEnabled = hostContext.Configuration.GetValue<bool>("IsSqlPersistenceEnabled");
 
-                              .WithShardRegionProxy<IShardProxyActor>("cartitemworker", "cartitemprocessor", new ShardCartItemMessage())
-                              .WithShardRegion<IShardActor>("cartworker", (id) =>
+                      builder
+                         .AddHocon(hocon: "akka.remote.dot-netty.tcp.maximum-frame-size = 256000b", addMode: HoconAddMode.Prepend)
+
+                         // Add common DevOps settings
+                         .WithOps(
+                              remoteOptions: new RemoteOptions
                               {
-                                  var registry = provider.GetRequiredService<IActorRegistry>();
-                                  return Props.Create(() => new CartProcessActor(registry));
+                                  HostName = "0.0.0.0",
+                                  Port = 9447
                               },
-                              new ShardCartMessageRouter(),
-                              new ShardOptions
+                              clusterOptions: new ClusterOptions
                               {
-                                  PassivateIdleEntityAfter = TimeSpan.FromMinutes(2),
-                                  RememberEntities = true,
-                                  RememberEntitiesStore = RememberEntitiesStore.DData,
-                                  StateStoreMode = StateStoreMode.DData,
-                                  Role = "cartprocessor"
-                              });
+                                  SeedNodes = new[] { "akka.tcp://cartservice@localhost:9445" },
+                                  Roles = new[] { "cartprocessor" }
+                              },
+                              config: hostContext.Configuration,
+                              readinessPort: 11112,
+                              pbmPort: 9213)
 
-                      });
-                  })
-                  .ConfigureLogging((hostContext, configLogging) =>
-                  {
-                      configLogging.AddConsole();
+                          .WithSqlServerPersistence(localConn) // Standard way to create a default persistence journal and snapshot
+                          .WithSqlServerPersistence(shardingJournalOptions, shardingSnapshotOptions)
+                          .WithShardRegionProxy<IShardProxyActor>("cartitemworker", "cartitemprocessor", new ShardCartItemMessage())
+                          //Uncomment if you want to use  akka distributed data for storing state.
+                          //.WithShardRegion<CartProcessActor>("cartworker", (id) =>
+                          //{
+                          //    var registry = provider.GetRequiredService<IActorRegistry>();
+                          //    return Props.Create(() => new CartProcessActor(registry));
+                          //},
+                          //new ShardCartMessageRouter(),
+                          //new ShardOptions
+                          //{
+                          //    PassivateIdleEntityAfter = TimeSpan.FromMinutes(2),
+                          //    RememberEntities = true,
+                          //    RememberEntitiesStore = RememberEntitiesStore.DData,
+                          //    StateStoreMode = StateStoreMode.DData,
+                          //    Role = "cartprocessor"
+                          //})
+                          //Use this, if you want to use  sql as a persistent for storing state.
+                          .WithShardRegion<CartProcessorPersistentActor>("cartworker", (id) =>
+                           {
+                               var registry = provider.GetRequiredService<IActorRegistry>();
+                               return Props.Create(() => new CartProcessorPersistentActor(registry, id));
+                           },
+                            new ShardCartMessageRouter(),
+                            new ShardOptions
+                            {
+                                PassivateIdleEntityAfter = TimeSpan.FromMinutes(2),
+                                RememberEntities = true,
+                                RememberEntitiesStore = isSqlPersistenceEnabled? RememberEntitiesStore.Eventsourced : RememberEntitiesStore.DData,
+                                JournalOptions = isSqlPersistenceEnabled? shardingJournalOptions:null,
+                                SnapshotOptions = isSqlPersistenceEnabled? shardingSnapshotOptions:null,
+                                StateStoreMode = isSqlPersistenceEnabled? StateStoreMode.Persistence : StateStoreMode.DData,
+                                Role = "cartprocessor"
+                            });
 
-                  })
-                  .UseConsoleLifetime()
-                  .Build();
+                  });
+              })
+              .ConfigureLogging((hostContext, configLogging) =>
+              {
+                  configLogging.AddConsole();
 
-            await host.RunAsync();
+              })
+              .UseConsoleLifetime()
+              .Build();
+
+        await host.RunAsync();
 
     }
 }
