@@ -2,7 +2,7 @@
 
 namespace Akka.Cluster.Infra.Events
 {
-    public class CreateCartItemRequest: IWithCartId, IWithCartItemId
+    public class CreateCartItemRequest:BaseMessage, IWithCartId, IWithCartItemId
     {
         public string CartId { get; set; }
         public string CartItemId { get; set; }

@@ -6,6 +6,10 @@ using Akka.Actor;
 using Akka.Cluster.Sharding;
 using Akka.Persistence.SqlServer.Hosting;
 using CartStatusProcessor;
+using OpenTelemetry.Trace;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Exporter;
+using OpenTelemetry;
 
 class Program
 {
@@ -19,6 +23,22 @@ class Program
               })
               .ConfigureServices((hostContext, services) =>
               {
+                  Action<ResourceBuilder> configureResource = r => r.AddService(
+                    serviceName: hostContext.Configuration.GetValue("ServiceName", defaultValue: "cartstatusprocessor")!,
+                    serviceVersion: typeof(Program).Assembly.GetName().Version?.ToString() ?? "unknown",
+                    serviceInstanceId: Environment.MachineName);
+
+                  services.AddOpenTelemetry()
+                  .WithTracing(builder => builder
+                      .ConfigureResource(configureResource)
+                      .AddSource(Instrumentation.ActivitySourceName)
+                       //.AddConsoleExporter()
+                       .AddOtlpExporter(opts =>
+                       {
+                           opts.Protocol = OtlpExportProtocol.Grpc;
+                           opts.Endpoint = new Uri("http://localhost:4317/api/traces");
+                           opts.ExportProcessorType = ExportProcessorType.Batch;
+                       }));
                   services.AddLogging();
                   services.AddAkka("cartservice", (builder, provider) =>
                   {

@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Akka.Cluster.Infra.Events
 {
-    public class GetCartStatus : IWithCartId
+    public class GetCartStatus : BaseMessage, IWithCartId
     {
         public string CartId { get; set; }
     }

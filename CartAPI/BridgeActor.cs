@@ -4,6 +4,10 @@ using Akka.Cluster.Infra.Events;
 using Akka.Cluster.Infra.Events.Persistence;
 using Akka.Event;
 using Akka.Hosting;
+using CartAPI;
+using OpenTelemetry;
+using OpenTelemetry.Context.Propagation;
+using System.Diagnostics;
 
 namespace TradePlacementAPI
 {
@@ -12,7 +16,8 @@ namespace TradePlacementAPI
         private readonly ILoggingAdapter _log = Context.GetLogger();
         private IActorRef _shardCartActor;
         private IActorRef _shardCartStatusActor;
-
+        private readonly ActivitySource _activitySource=new(Instrumentation.ActivitySourceName);
+        private static readonly TextMapPropagator Propagator = Propagators.DefaultTextMapPropagator;
 
         public BridgeActor(IActorRegistry _actorRegistry)
         {
@@ -20,6 +25,10 @@ namespace TradePlacementAPI
             _shardCartStatusActor= _actorRegistry.Get<ShardCartStatusMessage>();
             Receive<CreateCartRequest>(cartReq =>
             {
+                var parentContext = Propagator.Extract(default, cartReq, InstrumentationHelper.ExtractTraceContextFromBasicProperties);
+                Baggage.Current = parentContext.Baggage;
+                using var activity=_activitySource.StartActivity(nameof(BridgeActor), ActivityKind.Internal, parentContext.ActivityContext);
+                InstrumentationHelper.AddActivityToRequest(activity, cartReq, "POST api/cart", nameof(BridgeActor));
                 _log.Info($"Received create cart request for cart Id {cartReq.CartId} for the user : {cartReq.UserId}");
                 _shardCartActor.Tell(cartReq);
                 Sender.Tell(new CreateCartResponse { CartId = cartReq.CartId, Status = "InProgress" });
@@ -27,6 +36,10 @@ namespace TradePlacementAPI
 
             Receive<CreateCartItemRequest>(cartItemReq =>
             {
+                var parentContext = Propagator.Extract(default, cartItemReq, InstrumentationHelper.ExtractTraceContextFromBasicProperties);
+                Baggage.Current = parentContext.Baggage;
+                using var activity = _activitySource.StartActivity(nameof(BridgeActor), ActivityKind.Internal, parentContext.ActivityContext);
+                InstrumentationHelper.AddActivityToRequest(activity, cartItemReq, "POST api/cartid/item", nameof(BridgeActor));
                 _log.Info($"Received add cart item request for item Id {cartItemReq.CartItemId} for the cart : {cartItemReq.CartId}");
                 _shardCartActor.Tell(cartItemReq);
                 Sender.Tell(new CreateCartItemResponse { CartItemId = cartItemReq.CartItemId, Status="InProgress" });
@@ -34,6 +47,10 @@ namespace TradePlacementAPI
 
             Receive<GetCartStatus>(async GetCartStatus =>
             {
+                var parentContext = Propagator.Extract(default, GetCartStatus, InstrumentationHelper.ExtractTraceContextFromBasicProperties);
+                Baggage.Current = parentContext.Baggage;
+                using var activity = _activitySource.StartActivity(nameof(BridgeActor), ActivityKind.Internal, parentContext.ActivityContext);
+                InstrumentationHelper.AddActivityToRequest(activity, GetCartStatus, "POST api/cartid/status", nameof(BridgeActor));
                 var sender = Context.Sender;
                 var result = await _shardCartStatusActor.Ask<CartJournal>(GetCartStatus);               
                 _log.Info($"Received Get cart status response for cart Id: {result.CartId} with status : {result.CartStatus}");

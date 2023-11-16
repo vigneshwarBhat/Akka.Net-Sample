@@ -28,4 +28,10 @@ services:
 
   persistence:
     image: mcr.microsoft.com/azure-sql-edge:latest
+  tempo:
+    image: grafana/tempo:latest
+    container_name: tempo
+  otel-collector:
+    image: otel/opentelemetry-collector:latest
+    container_name: otel-collector
 

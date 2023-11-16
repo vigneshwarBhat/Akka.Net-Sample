@@ -4,7 +4,9 @@ using Akka.Cluster.Infra.Events;
 using Akka.Cluster.Infra.Events.Persistence;
 using Akka.Event;
 using Akka.Persistence;
-
+using OpenTelemetry;
+using OpenTelemetry.Context.Propagation;
+using System.Diagnostics;
 
 namespace CartStatusProcessor
 {
@@ -13,15 +15,17 @@ namespace CartStatusProcessor
         private readonly ILoggingAdapter _log = Context.GetLogger();
         public const int SnapshotInterval = 100;
         private readonly CartData _cartData;
+        private static readonly ActivitySource ActivitySource = new(Instrumentation.ActivitySourceName);
+        private static readonly TextMapPropagator Propagator = Propagators.DefaultTextMapPropagator;
         public override string PersistenceId { get; }
         public CartStatusPersistenceActor(string persistenceId) : this(persistenceId, null)
         {
 
         }
 
-        public CartStatusPersistenceActor(string persistenceId, CartData? cartEngine)
+        public CartStatusPersistenceActor(string persistenceId, CartData? cartData)
         {
-            _cartData = cartEngine ?? new CartData();
+            _cartData = cartData ?? new CartData();
             PersistenceId = persistenceId;
             Recovers();
             Commands();
@@ -32,6 +36,11 @@ namespace CartStatusProcessor
 
             Command<GetCartStatus>(cartStatusReq =>
             {
+                var parentContext = Propagator.Extract(default, cartStatusReq, InstrumentationHelper.ExtractTraceContextFromBasicProperties);
+                Baggage.Current = parentContext.Baggage;
+                using var activity = ActivitySource.StartActivity(nameof(Commands), ActivityKind.Internal, parentContext.ActivityContext);
+                activity?.SetTag("cartId", cartStatusReq.CartId);
+                activity?.AddEvent(new ActivityEvent("Getting cart status"));
                 var cart = GetCartStatus(cartStatusReq);
                 Sender.Tell(cart);
             });
@@ -41,6 +50,8 @@ namespace CartStatusProcessor
         {
             Recover<SnapshotOffer>(offer =>
             {
+                using var activity = ActivitySource.StartActivity(nameof(Recovers), ActivityKind.Internal);
+                activity?.AddEvent(new ActivityEvent("Recovering cart and cart item snapshot."));
                 if (offer.Snapshot is List<CartEvent> cartList)
                 {
                     _cartData.CartEvents.AddRange(cartList);
@@ -55,12 +66,16 @@ namespace CartStatusProcessor
 
             Recover<CartEvent>(cart =>
             {
+                using var activity = ActivitySource.StartActivity(nameof(Recovers), ActivityKind.Internal);
+                activity?.AddEvent(new ActivityEvent("Recovering cart journal."));
                 _cartData.CartEvents.Add(cart);
                 _log.Info($"cart journal recovery completed.");
             });
 
             Recover<CartItemEvent>(b =>
             {
+                using var activity = ActivitySource.StartActivity(nameof(Recovers), ActivityKind.Internal);
+                activity?.AddEvent(new ActivityEvent("Recovering cart item journal."));
                 _cartData.CartItemEvents.Add(b);
                 _log.Info($"cart item journal recovery completed.");
             });

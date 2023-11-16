@@ -1,15 +1,64 @@
 using Akka.Actor;
 using Akka.Cluster.Hosting;
 using Akka.Cluster.Infra;
-using Akka.Cluster.Infra.Events;
 using Akka.Hosting;
 using Akka.Remote.Hosting;
+using CartAPI;
+using OpenTelemetry;
+using OpenTelemetry.Exporter;
+using OpenTelemetry.Instrumentation.AspNetCore;
+using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using TradePlacementAPI;
 
 var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Development";
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
+// Note: Switch between Zipkin/OTLP/Console by setting UseTracingExporter in appsettings.json.
+var tracingExporter = builder.Configuration.GetValue("UseTracingExporter", defaultValue: "console")!.ToLowerInvariant();
+
+// Build a resource configuration action to set service information.
+Action<ResourceBuilder> configureResource = r => r.AddService(
+    serviceName: builder.Configuration.GetValue("ServiceName", defaultValue: "cart-api")!,
+    serviceVersion: typeof(Program).Assembly.GetName().Version?.ToString() ?? "unknown",
+    serviceInstanceId: Environment.MachineName);
+
+// Configure OpenTelemetry tracing & metrics with auto-start using the
+// AddOpenTelemetry extension from OpenTelemetry.Extensions.Hosting.
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(configureResource)
+    .WithTracing(appBuilder =>
+    {
+        // Tracing
+        // Ensure the TracerProvider subscribes to any custom ActivitySources.
+        appBuilder
+            .AddSource(Instrumentation.ActivitySourceName)
+            .AddHttpClientInstrumentation()
+            .AddAspNetCoreInstrumentation();
+
+        switch (tracingExporter)
+        {
+            case "otlp":
+                appBuilder.AddOtlpExporter(otlpOptions =>
+                {
+                    // Use IConfiguration directly for Otlp exporter endpoint option.
+                    otlpOptions.Endpoint = new Uri(builder.Configuration.GetValue("Otlp:Endpoint", defaultValue: "http://localhost:4317/api/traces")!);
+                    otlpOptions.Protocol = OtlpExportProtocol.Grpc;
+                    otlpOptions.ExportProcessorType = ExportProcessorType.Batch;
+                });
+                break;
+
+            default:
+                appBuilder.AddConsoleExporter();
+                break;
+        }
+    });
+   
+// Clear default logging providers used by WebApplication host.
+builder.Logging.ClearProviders();
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -65,7 +114,7 @@ builder.WebHost.ConfigureServices((context, services) =>
 
 
 var app = builder.Build();
-
+app.UseCorrelationId();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {

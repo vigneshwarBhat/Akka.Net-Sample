@@ -6,11 +6,19 @@ using Akka.Cluster.Infra.Events;
 using Akka.Actor;
 using Akka.Cluster.Sharding;
 using Akka.Persistence.SqlServer.Hosting;
+using OpenTelemetry.Trace;
+using OpenTelemetry.Exporter;
+using OpenTelemetry.Resources;
+using OpenTelemetry;
+using CartWorker.Actor;
+using System.Diagnostics;
 
 class Program
 {
+    private static readonly ActivitySource MyActivitySource = new("MyCompany.MyProduct.MyLibrary");
     static async Task Main(string[] args)
     {
+
         var host = new HostBuilder()
               .ConfigureHostConfiguration(builder =>
               {
@@ -19,6 +27,23 @@ class Program
               })
               .ConfigureServices((hostContext, services) =>
               {
+                  Action<ResourceBuilder> configureResource = r => r.AddService(
+                    serviceName: hostContext.Configuration.GetValue("ServiceName", defaultValue: "cartprocessor")!,
+                    serviceVersion: typeof(Program).Assembly.GetName().Version?.ToString() ?? "unknown",
+                    serviceInstanceId: Environment.MachineName);
+
+                  services.AddOpenTelemetry()
+                   .WithTracing(builder => builder
+                       .ConfigureResource(configureResource)
+                       .AddSource(Instrumentation.ActivitySourceName)
+                       .AddAspNetCoreInstrumentation()
+                        //.AddConsoleExporter()
+                       .AddOtlpExporter(opts =>
+                          {
+                              opts.Protocol = OtlpExportProtocol.Grpc;
+                              opts.Endpoint = new Uri("http://localhost:4317/api/traces");
+                              opts.ExportProcessorType = ExportProcessorType.Batch;
+                          }));
                   services.AddLogging();
                   services.AddAkka("cartservice", (builder, provider) =>
                   {
@@ -93,10 +118,10 @@ class Program
                             {
                                 PassivateIdleEntityAfter = TimeSpan.FromMinutes(2),
                                 RememberEntities = true,
-                                RememberEntitiesStore = isSqlPersistenceEnabled? RememberEntitiesStore.Eventsourced : RememberEntitiesStore.DData,
-                                JournalOptions = isSqlPersistenceEnabled? shardingJournalOptions:null,
-                                SnapshotOptions = isSqlPersistenceEnabled? shardingSnapshotOptions:null,
-                                StateStoreMode = isSqlPersistenceEnabled? StateStoreMode.Persistence : StateStoreMode.DData,
+                                RememberEntitiesStore = isSqlPersistenceEnabled ? RememberEntitiesStore.Eventsourced : RememberEntitiesStore.DData,
+                                JournalOptions = isSqlPersistenceEnabled ? shardingJournalOptions : null,
+                                SnapshotOptions = isSqlPersistenceEnabled ? shardingSnapshotOptions : null,
+                                StateStoreMode = isSqlPersistenceEnabled ? StateStoreMode.Persistence : StateStoreMode.DData,
                                 Role = "cartprocessor"
                             });
 
@@ -111,6 +136,5 @@ class Program
               .Build();
 
         await host.RunAsync();
-
     }
 }

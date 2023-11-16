@@ -2,10 +2,10 @@
 
 
 ## CartAPI 
-This is a starting point of the application which exposes few api's like POST /Cart, POST /{id}/item and GET cart/status. And this dot.net core service internally uses different actor systems to do its job.
+This is a starting point of the application which exposes few api's like POST /cart, POST cart/{id}/item and GET cart/status. And this dot.net core service internally uses different actor systems to do its job.
 
 ## CartProcessor Actor
- This actor is responsible for processing any request pertaining to cart. Every request with unique cart id will end up creating new actor and processing will be done by that new actor. Any request to with the same cart id, will always be sent to the same actor. It basically uses consistent hashing to find the right actor to make call and process the request. This actor runs in its own node/pod
+ This actor is responsible for processing any request pertaining to cart. Every request with unique cart id will end up creating new actor and processing will be done by that new actor. Any request with the same cart id, will always be sent to the same actor. It basically uses consistent hashing to find the right actor to make a call and process the request. This actor runs in its own node/pod
 
  ## CartItemProcessor Actor
 This actor is responsible for processing any request pertaining to cart items. Every request with unique cart item id will end up creating new actor and processing will be done by that new cart item actor. Any request to with the same cart item id, will always be sent to the same actor. It basically uses consistent hashing to find the right actor to make call and process the request.
