@@ -15,7 +15,7 @@ using System.Diagnostics;
 
 class Program
 {
-    private static readonly ActivitySource MyActivitySource = new("MyCompany.MyProduct.MyLibrary");
+  
     static async Task Main(string[] args)
     {
 

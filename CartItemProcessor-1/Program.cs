@@ -14,6 +14,12 @@ using CartItemProcessor_1;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Exporter;
 using OpenTelemetry;
+using Conga.Platform.Auth.JWT;
+using Conga.Platform.ClientSDK.Framework.Http.Registration;
+using Conga.Platform.ClientSDK.Framework.Models;
+using Conga.Platform.DocumentManagement.Client.Registration;
+using Conga.Platform.DocumentManagement.Client;
+using System.Reflection;
 
 class Program
 {
@@ -24,6 +30,7 @@ class Program
               .ConfigureHostConfiguration(builder =>
               {
                   builder.AddJsonFile("appsettings.json");
+                  builder.AddUserSecrets(Assembly.GetExecutingAssembly(), true);
                   builder.AddEnvironmentVariables();
               })
               .ConfigureServices((hostContext, services) =>
@@ -32,11 +39,22 @@ class Program
                     serviceName: hostContext.Configuration.GetValue("ServiceName", defaultValue: "cartitemprocessor")!,
                     serviceVersion: typeof(Program).Assembly.GetName().Version?.ToString() ?? "unknown",
                     serviceInstanceId: Environment.MachineName);
-
+                  services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+                  services.AddAuthorization(options => options.RegisterPolicies());
+                  PlatformClientExtensions.AddPlatformClientForWorker(services, hostContext.Configuration);
+                  services.AddDocumentManagementClientForWorkerSingleton(hostContext.Configuration,
+                      new UserOrganizationDetail
+                      {
+                          OrganizationFriendlyId = "rls-perf-0c777a65-3b21-43f1-b0d3-bc08e80cd7fc",
+                          OrganizationId = "0c777a65-3b21-43f1-b0d3-bc08e80cd7fc",
+                          UserId = "0b8f4cee-6087-4e64-baad-8445e6dc4170"
+                      });
                   services.AddOpenTelemetry()
                   .WithTracing(builder => builder
                       .ConfigureResource(configureResource)
                       .AddSource(Instrumentation.ActivitySourceName)
+                      .AddHttpClientInstrumentation()
+                      .AddAspNetCoreInstrumentation()
                       //.AddConsoleExporter()
                       .AddOtlpExporter(opts =>
                       {
@@ -106,7 +124,8 @@ class Program
                           //    })
                           .WithShardRegion<CartItemPersistenceActor>("cartitemworker", (id) =>
                            {
-                               return Props.Create(() => new CartItemPersistenceActor(id));
+                               var docmgmt = provider.GetRequiredService<IDocumentManagementClient>();
+                               return Props.Create(() => new CartItemPersistenceActor(id, docmgmt));
                            },
                             new ShardCartItemMessage(),
                             new ShardOptions

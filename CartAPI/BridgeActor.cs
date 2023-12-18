@@ -5,6 +5,8 @@ using Akka.Cluster.Infra.Events.Persistence;
 using Akka.Event;
 using Akka.Hosting;
 using CartAPI;
+using Conga.Platform.DocumentManagement.Client;
+using Conga.Platform.DocumentManagement.Client.Models.Request;
 using OpenTelemetry;
 using OpenTelemetry.Context.Propagation;
 using System.Diagnostics;
@@ -14,17 +16,22 @@ namespace TradePlacementAPI
     public class BridgeActor:ReceiveActor
     {
         private readonly ILoggingAdapter _log = Context.GetLogger();
+        private readonly IServiceProvider _serviceProvider;
         private IActorRef _shardCartActor;
         private IActorRef _shardCartStatusActor;
         private readonly ActivitySource _activitySource=new(Instrumentation.ActivitySourceName);
         private static readonly TextMapPropagator Propagator = Propagators.DefaultTextMapPropagator;
 
-        public BridgeActor(IActorRegistry _actorRegistry)
+        public BridgeActor(IActorRegistry _actorRegistry, IServiceProvider serviceProvider)
         {
             _shardCartActor = _actorRegistry.Get<ShardCartMessageRouter>();
             _shardCartStatusActor= _actorRegistry.Get<ShardCartStatusMessage>();
-            Receive<CreateCartRequest>(cartReq =>
+            _serviceProvider = serviceProvider;
+            Receive<CreateCartRequest>(async cartReq =>
             {
+               // using var scope= _serviceProvider.CreateScope();
+                //var _documentManagementClient = scope.ServiceProvider.GetRequiredService<IDocumentManagementClient>();
+                //await _documentManagementClient.GetManyAsync(new DocumentGetManyRequest {DocumentIds=new List<string>() });
                 var parentContext = Propagator.Extract(default, cartReq, InstrumentationHelper.ExtractTraceContextFromBasicProperties);
                 Baggage.Current = parentContext.Baggage;
                 using var activity=_activitySource.StartActivity(nameof(BridgeActor), ActivityKind.Internal, parentContext.ActivityContext);

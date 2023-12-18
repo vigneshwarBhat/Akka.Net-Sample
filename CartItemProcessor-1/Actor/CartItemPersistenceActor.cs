@@ -5,9 +5,13 @@ using Akka.Cluster.Infra.Events.Persistence;
 using Akka.Event;
 using Akka.Persistence;
 using Akka.Persistence.Extras;
+using Conga.Platform.DocumentManagement.Client;
+using Conga.Platform.DocumentManagement.Client.Models.Request;
+using Conga.Platform.DocumentManagement.Client.Models.Response;
 using OpenTelemetry;
 using OpenTelemetry.Context.Propagation;
 using System.Diagnostics;
+using System.Text.Json;
 
 namespace CartItemProcessor_1.Actor
 {
@@ -15,19 +19,21 @@ namespace CartItemProcessor_1.Actor
     {
         private readonly ILoggingAdapter _log = Context.GetLogger();
         public const int SnapshotInterval = 100;
+        private readonly IDocumentManagementClient _documentManagementClient;
         private readonly CartData _cartEngine;
         private static readonly ActivitySource ActivitySource = new(Instrumentation.ActivitySourceName);
         private static readonly TextMapPropagator Propagator = Propagators.DefaultTextMapPropagator;
-        public CartItemPersistenceActor(string persistenceId):this(persistenceId, null)
+        public CartItemPersistenceActor(string persistenceId, IDocumentManagementClient documentManagementClient) : this(persistenceId, null, documentManagementClient)
         {
-            
+
         }
 
-        public CartItemPersistenceActor(string persistenceId, CartData? cartEngine)
+        public CartItemPersistenceActor(string persistenceId, CartData? cartEngine, IDocumentManagementClient documentManagementClient)
         {
             var items = persistenceId.Split('|');
             _cartEngine = cartEngine ?? new CartData();
             PersistenceId = items[0];
+            _documentManagementClient = documentManagementClient;
             Recovers();
             Commands();
         }
@@ -44,18 +50,42 @@ namespace CartItemProcessor_1.Actor
                 PersistsAll(cart);
             });
 
-            Command<CreateCartItemRequest>(cart =>
+            CommandAsync<CreateCartItemRequest>(async cart =>
             {
 
                 var parentContext = Propagator.Extract(default, cart, InstrumentationHelper.ExtractTraceContextFromBasicProperties);
                 Baggage.Current = parentContext.Baggage;
-                using var activity = ActivitySource.StartActivity(nameof(Commands), ActivityKind.Internal, parentContext.ActivityContext);
-                activity?.SetTag("cartID", cart.CartId);
-                activity?.SetTag("cartItemID", cart.CartItemId);
-                activity?.AddEvent(new ActivityEvent("Creating cart item"));
-                //Business logic.
-                //Thread.Sleep(1000);
-                PersistsAll(cart);
+                using (var activity = ActivitySource.StartActivity(nameof(Commands), ActivityKind.Internal, parentContext.ActivityContext))
+                {
+                    activity?.SetTag("cartID", cart.CartId);
+                    activity?.SetTag("cartItemID", cart.CartItemId);
+                    activity?.AddEvent(new ActivityEvent("Creating cart item"));
+
+                    var document = await JsonHelper.ReadAsync<Document>("DocumentId1.json");
+                    var randomDocIds = document.DocumentIds.OrderBy(x => Guid.NewGuid()).ToList().Take(5000);
+                    var iterationCount = Math.Ceiling((decimal)5000 / 100);
+                    var taskList = new List<Task<DocumentGetManyResponse>>();
+                    using (var activity1 = ActivitySource.StartActivity("Getting document meta data and blob", ActivityKind.Internal, activity.Context))
+                    {
+                        activity1?.AddEvent(new ActivityEvent($"started sending requests to doc management at {DateTime.Now}."));
+                        for (var i = 0; i < iterationCount; i++)
+                        {
+                            activity1?.AddEvent(new ActivityEvent($"Document management call number {i} at {DateTime.Now}"));
+                            var docIds = randomDocIds.Skip(i * 100).Take(100).ToList();
+                            activity1?.SetTag("ids", docIds);
+                            taskList.Add(_documentManagementClient.GetManyAsync(new DocumentGetManyRequest
+                            {
+                                DocumentIds = docIds
+                            }));
+                        }
+                        var result = await Task.WhenAll(taskList);
+                        activity1?.AddEvent(new ActivityEvent($"Got a response for all 50 calls for doc management at {DateTime.Now}."));
+                    }
+                    //Business logic.
+                    //Thread.Sleep(1000);
+                    PersistsAll(cart);
+                }
+
             });
         }
 
@@ -80,7 +110,7 @@ namespace CartItemProcessor_1.Actor
                        _log.Info($"Cart item: {createCartItemRequest.CartItemId} belonging to cart {createCartItemRequest.CartId} got persisted.");
                    });
             }
-            if (LastSequenceNr !=0 && LastSequenceNr % SnapshotInterval == 0)
+            if (LastSequenceNr != 0 && LastSequenceNr % SnapshotInterval == 0)
             {
                 using (var activity = ActivitySource.StartActivity(nameof(PersistsAll), ActivityKind.Internal))
                 {
@@ -116,6 +146,7 @@ namespace CartItemProcessor_1.Actor
             });
 
         }
+
 
     }
 }

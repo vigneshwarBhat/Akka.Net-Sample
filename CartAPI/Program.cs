@@ -4,6 +4,7 @@ using Akka.Cluster.Infra;
 using Akka.Hosting;
 using Akka.Remote.Hosting;
 using CartAPI;
+using Conga.Platform.ClientSDK.Framework.Http.Registration;
 using OpenTelemetry;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Instrumentation.AspNetCore;
@@ -12,10 +13,17 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using TradePlacementAPI;
+using Conga.Platform.Auth.JWT;
+using Conga.Platform.DocumentManagement.Client.Registration;
+using System.IdentityModel.Tokens.Jwt;
+using Microsoft.OpenApi.Models;
+using Conga.Platform.DocumentManagement.Client;
+using Conga.Platform.Telemetry;
+using Conga.Platform.Telemetry.Contracts.Models;
+using System.Reflection;
 
 var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Development";
 var builder = WebApplication.CreateBuilder(args);
-
 // Add services to the container.
 // Note: Switch between Zipkin/OTLP/Console by setting UseTracingExporter in appsettings.json.
 var tracingExporter = builder.Configuration.GetValue("UseTracingExporter", defaultValue: "console")!.ToLowerInvariant();
@@ -25,7 +33,7 @@ Action<ResourceBuilder> configureResource = r => r.AddService(
     serviceName: builder.Configuration.GetValue("ServiceName", defaultValue: "cart-api")!,
     serviceVersion: typeof(Program).Assembly.GetName().Version?.ToString() ?? "unknown",
     serviceInstanceId: Environment.MachineName);
-
+JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
 // Configure OpenTelemetry tracing & metrics with auto-start using the
 // AddOpenTelemetry extension from OpenTelemetry.Extensions.Hosting.
 builder.Services.AddOpenTelemetry()
@@ -63,15 +71,55 @@ builder.Logging.ClearProviders();
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme()
+    {
+        In = ParameterLocation.Header,
+        Description = "Please insert JWT with Bearer into field",
+        Name = "Authorization",
+        Type = SecuritySchemeType.ApiKey
+    });
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement()
+                {
+                    {
+                        new OpenApiSecurityScheme
+                        {
+                            Reference = new OpenApiReference
+                            {
+                                Type = ReferenceType.SecurityScheme,
+                                Id = "Bearer"
+                            },
+                            Scheme = "oauth2",
+                            Name = "Bearer",
+                            In = ParameterLocation.Header
+                        },
+                        new List<string>()
+                    }
+                });
+});
 builder.Configuration
     .AddJsonFile("appsettings.json")
+    .AddUserSecrets(Assembly.GetExecutingAssembly(), true)
     .AddEnvironmentVariables();
 
 builder.Logging.ClearProviders().AddConsole();
 builder.WebHost.ConfigureServices((context, services) =>
 {
-    services.AddControllers();
+    //services.AddControllers();
+    services.AddJwtAuthentication(context.Configuration);
+    services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+    services.AddAuthorization(options => options.RegisterPolicies());
+    PlatformClientExtensions.AddPlatformClientForWeb(services, context.Configuration);
+    services.AddDocumentManagementClientForWeb(context.Configuration);
+    //services.AddTelemetry(new ServiceInfo
+    //{
+    //    DisplayName = "Cart",
+    //    EnvironmentName = "Test",
+    //    Namespace = "Cart",
+    //    Version = "1.0.0",
+    //    Name="Cart"
+    //}, context.Configuration);
     builder.Services.AddCors(options =>
     {
         options.AddPolicy("CorsPolicy",
@@ -81,6 +129,7 @@ builder.WebHost.ConfigureServices((context, services) =>
             .AllowAnyHeader()
                 .AllowCredentials());
     });
+
     services.AddAkka("cartservice", (builder, provider) =>
     {
         builder
@@ -105,14 +154,11 @@ builder.WebHost.ConfigureServices((context, services) =>
             // Instantiate actors
             .WithActors((system, registry) =>
             {
-               var bridgeActor = system.ActorOf(Props.Create(() => new BridgeActor(registry)), "bridge");
-                registry.Register<BridgeActor>(bridgeActor);
+               var bridgeActor = system.ActorOf(Props.Create(() => new BridgeActor(registry, provider)), "bridge");
+               registry.Register<BridgeActor>(bridgeActor);               
             });
     });
 });
-
-
-
 var app = builder.Build();
 app.UseCorrelationId();
 // Configure the HTTP request pipeline.
@@ -123,9 +169,9 @@ if (app.Environment.IsDevelopment())
 }
 app.UseCors("CorsPolicy");
 app.UseHttpsRedirection();
-
+app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapControllers();
+app.MapControllers().RequireAuthorization();
 
 app.Run();
